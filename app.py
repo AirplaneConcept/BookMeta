@@ -1075,17 +1075,21 @@ def scan_library(library_path, rescan=False):
     SCAN_STATUS["phase"] = "cleanup"
     SCAN_STATUS["current"] = "Checking for moved or deleted files…"
 
-    # Walk disk ONCE to get all known paths as a set.
-    # This is one fast directory traversal rather than one network round-trip per DB record.
-    disk_paths = set()
+    # Walk disk ONCE to get all known paths.
+    # Store both raw paths (for DB insertion) and normalized paths (for comparison)
+    disk_paths_raw = []  # raw paths as os.path.join produces them
+    disk_paths_norm = set()  # normalized for comparison against DB records
     for root, dirs, files in os.walk(library_path):
         dirs[:] = [d for d in dirs if not d.startswith('.')]
         for f in files:
             ext = Path(f).suffix.lower()
             if ext in ALL_EXTENSIONS and ext not in IGNORE_EXTENSIONS:
-                disk_paths.add(os.path.join(root, f))
+                raw = os.path.join(root, f)
+                disk_paths_raw.append(raw)
+                disk_paths_norm.add(os.path.normcase(raw))
 
-    # Find DB records whose path isn't in the disk set (set lookup = instant)
+    # Find DB records whose path isn't on disk
+    # Normalize both sides so slash direction and casing don't cause false mismatches
     missing_files = []
     for row in conn.execute("""
         SELECT bf.id, bf.book_id, bf.file_path, bf.file_name, bf.file_sha1
@@ -1093,8 +1097,11 @@ def scan_library(library_path, rescan=False):
         JOIN books b ON b.id = bf.book_id
         WHERE b.is_physical = 0
     """).fetchall():
-        if row['file_path'] not in disk_paths:
+        if os.path.normcase(row['file_path'] or '') not in disk_paths_norm:
             missing_files.append(dict(row))
+
+    # Phase 1 uses raw paths for DB lookups
+    disk_paths = disk_paths_raw
 
     if missing_files:
         # Only compute SHA1s if at least one missing file has a known SHA1
@@ -1159,6 +1166,15 @@ def scan_library(library_path, rescan=False):
             "SELECT id, book_id, file_size, file_mtime, file_sha1 FROM book_files WHERE file_path=?",
             (fpath,)
         ).fetchone()
+        # Fallback: try case-insensitive match in case path casing changed
+        if not existing_file:
+            existing_file = conn.execute(
+                "SELECT id, book_id, file_size, file_mtime, file_sha1 FROM book_files WHERE LOWER(file_path)=LOWER(?)",
+                (fpath,)
+            ).fetchone()
+            if existing_file:
+                # Update stored path to current casing
+                conn.execute("UPDATE book_files SET file_path=? WHERE id=?", (fpath, existing_file['id']))
 
         if existing_file:
             # File already registered — skip if unchanged
