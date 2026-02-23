@@ -1,5 +1,7 @@
 # BookMeta
 
+I envisioned this as an Emby meets Calibre ebook library management platform for PC. It is a purely display layer like Emby that creates a record for each book file you have, automatically enriches that record by pulling data from the internet, and gives you a way to manually update records for books where no information can be automatically pulled. The purpose is to end up with a catalog built around the Library of Congress call number system to make it easier to browse your ebooks. This was built by AI. 
+
 **BookMeta is a local web app that scans your ebook library, extracts ISBNs from file contents, and automatically enriches your collection with metadata from OpenLibrary, Google Books, and the Library of Congress — including LC call numbers for proper shelf classification.** It runs entirely on your machine with no cloud account required. To get started: install Python, run `pip install flask`, drop `BookMeta.bat` in the same folder as `app.py`, and double-click it.
 
 ---
@@ -47,6 +49,7 @@
 - Merge duplicate records when two files turn out to be the same book
 
 **Reading & Rating**
+- Launch the books directly from the program
 - Mark books as read with a date
 - 1–5 star ratings
 - Filter list by read status or rating
@@ -195,5 +198,6 @@ After enrichment completes, some matched books may still lack LC call numbers (G
 ## Data & Privacy
 
 All data is stored locally in `books.db` (SQLite) in the application folder. No data is sent to any server except the metadata API queries (OpenLibrary, Google Books, LOC, OCLC) which only receive ISBNs and book titles. No account, login, or internet connection is required to use the app — only for metadata enrichment.
+The Google Books API key is stored in plain text alongside the database file. 
 
 The database file can be backed up by simply copying `books.db`. It is safe to replace `app.py` and the `templates` folder with a newer version without affecting your data.
