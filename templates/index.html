@@ -1447,10 +1447,13 @@ function pollLcStatus() {
     const r = await fetch('/api/lc/status');
     const s = await r.json();
     if (s.running) {
-      status.textContent = s.progress + '/' + s.total + ' — ' + (s.current || '');
+      const tried = s.tried || 0;
+      const found = s.updated || 0;
+      status.textContent = s.progress + '/' + s.total + ' checked, ' + tried + ' queried, ' + found + ' found — ' + (s.current || '');
     } else if (s.done) {
       clearInterval(iv);
-      status.textContent = '✓ Done — ' + (s.updated || 0) + ' LC numbers found';
+      const tried = s.tried || 0;
+      status.textContent = '✓ Done — queried ' + tried + ', found ' + (s.updated || 0) + ' LC numbers';
       btn.disabled = false;
       await loadBooks();
     }

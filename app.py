@@ -1429,21 +1429,23 @@ def run_lc_reextract():
 
     LC_STATUS["total"] = len(rows)
     updated = 0
+    tried = 0
+    no_isbn = sum(1 for r in rows if not r.get('isbn13') and not r.get('isbn'))
 
     for i, row in enumerate(rows):
         LC_STATUS["progress"] = i
+        LC_STATUS["tried"] = tried
+        LC_STATUS["updated"] = updated
         fname = row["file_path"] or ''
         LC_STATUS["current"] = os.path.basename(fname)
 
-        # 1. Try extracting from file
-        lc = None
-        if fname and os.path.isfile(fname):
-            try:
-                _, _, lc = extract_isbn_from_file(fname)
-            except Exception:
-                pass
+        isbn = row["isbn13"] or row["isbn"]
+        if not isbn and not row["openlibrary_id"]:
+            continue  # nothing to query with
+        tried += 1
 
-        # 2. Try OpenLibrary Works API if we have an OL ID (richest LC data)
+        # 1. Try OpenLibrary Works API if we already have an OL ID
+        lc = None
         if not lc and row["openlibrary_id"]:
             try:
                 ol_id = row["openlibrary_id"]
