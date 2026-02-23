@@ -1160,17 +1160,19 @@ def scan_library(library_path, rescan=False):
             (fpath,)
         ).fetchone()
 
-        if existing_file and not rescan:
+        if existing_file:
             # File already registered — skip if unchanged
             if (existing_file['file_size'] == stat.st_size and
                     existing_file['file_mtime'] and
                     abs(float(existing_file['file_mtime']) - stat.st_mtime) < 2):
                 book_row = conn.execute(
-                    "SELECT id, match_status, isbn13 FROM books WHERE id=?",
+                    "SELECT id, match_status, isbn13, manual_override FROM books WHERE id=?",
                     (existing_file['book_id'],)
                 ).fetchone()
-                if book_row and book_row['match_status'] == 'unmatched' and book_row['isbn13']:
-                    needs_lookup.append((book_row['id'], book_row['isbn13'], None, p.name))
+                # Add to Phase 2 queue if unmatched and has an ISBN (rescan retries these)
+                if book_row and book_row['isbn13'] and not book_row['manual_override']:
+                    if book_row['match_status'] == 'unmatched' or (rescan and book_row['match_status'] not in ('confirmed', 'auto_matched')):
+                        needs_lookup.append((book_row['id'], book_row['isbn13'], None, p.name))
                 continue
             # mtime/size changed — check sha1
             new_sha1 = sha1_file(fpath)
